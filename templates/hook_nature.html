@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>SIPERI Alat Pancing | SIPERI</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#f3f7fa; margin:0; color:#1f2933; }
+        .container { max-width:1120px; margin:28px auto; background:#fff; padding:28px; border-radius:16px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
+        h1,h2,h3 { color:#0f4c5c; }
+        .subtitle { color:#52616b; line-height:1.55; }
+        .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+        .box { background:#f8fafc; padding:15px; border-radius:10px; border:1px solid #d9e2ec; }
+        label { display:block; font-weight:bold; margin-bottom:7px; }
+        .help { font-size:13px; color:#66788a; margin-bottom:8px; line-height:1.4; }
+        input,select { width:100%; padding:10px; font-size:15px; border:1px solid #bcccdc; border-radius:8px; box-sizing:border-box; }
+        button,.linkbtn { margin-top:18px; background:#0f4c5c; color:white; border:none; padding:12px 18px; font-size:15px; border-radius:9px; cursor:pointer; text-decoration:none; display:inline-block; }
+        .linkbtn { background:#52616b; margin-left:8px; }
+        .results { margin-top:26px; padding:20px; background:#eefaf5; border:1px solid #b7ead7; border-radius:12px; }
+        .score { font-size:34px; font-weight:bold; color:#0f4c5c; }
+        .category { text-transform:uppercase; color:#52616b; font-size:13px; }
+        .recommendation { background:white; padding:15px; border-radius:10px; border:1px solid #c8e6d6; line-height:1.6; margin-top:16px; }
+        .chart-card { background:white; border:1px solid #d9e2ec; border-radius:12px; padding:14px; margin-top:18px; }
+        .chart-card img { width:100%; max-width:680px; height:auto; display:block; }
+        .error { margin-top:20px; padding:14px; background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; border-radius:10px; }
+        table { border-collapse:collapse; width:100%; margin-top:14px; font-size:14px; }
+        th,td { border:1px solid #d9e2ec; padding:8px; text-align:left; vertical-align:top; }
+        th { background:#eef7fb; }
+        .note { margin-top:18px; color:#66788a; font-size:13px; line-height:1.5; }
+        @media(max-width:900px){ .grid{grid-template-columns:1fr;} .container{margin:12px; padding:18px;} }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='siperi-theme.css') }}">
+</head>
+<body>
+<div class="container">
+    <div class="siperi-brandbar">
+        <div class="siperi-brand-left">
+            <img class="siperi-brand-logo" src="{{ url_for('static', filename='siperi-logo-main.png') }}" alt="Logo SIPERI">
+            <div class="siperi-brand-text">
+                <div class="siperi-kicker">SIPERI • Hybrid Fuzzy-AI</div>
+                <h1 class="siperi-brand-title">Kondisi Laut Alat Pancing</h1>
+                <p class="siperi-brand-subtitle">Penilaian kesesuaian lokasi, cuaca laut, target ikan, teknik pancing, dan kesiapan alat.</p>
+            </div>
+        </div>
+        <div class="siperi-badge">SIPERI • Hybrid Fuzzy-AI</div>
+    </div>
+    <nav class="siperi-topnav" aria-label="Navigasi fitur SIPERI">
+        <a href="{{ url_for('index') }}">Sistem Utama</a>
+        <a href="{{ url_for('ice_ice_page') }}">Ice-Ice</a>
+        <a href="{{ url_for('net_nature_page') }}">Kondisi Alam Jaring</a>
+        <a href="{{ url_for('liftnet_nature_page') }}">Kondisi Laut Bagan</a>
+        <a class="active" href="{{ url_for('hook_nature_page') }}">Kondisi Laut Pancing</a>
+        <a href="{{ url_for('index') }}#about">Tentang Aplikasi</a>
+    </nav>
+    <div class="siperi-identity-card">
+        <div>
+            <div class="siperi-main-label">Sistem Pakar Perikanan Berbasis Hybrid: Fuzzy dan Artificial Intelligence</div>
+            <div class="siperi-main-desc">Aplikasi ini mengintegrasikan pendekatan fuzzy logic dan kecerdasan buatan untuk membantu evaluasi, diagnosis, dan rekomendasi keputusan pada berbagai aktivitas perikanan secara lebih sistematis dan profesional.</div>
+        </div>
+</div>
+    <h1>Fuzzy Identifikasi Kondisi Laut untuk Alat Pancing</h1>
+    <p class="subtitle">
+        Fitur ini menilai kelayakan memancing berdasarkan target ikan, teknik pancing, arus, gelombang, angin,
+        kecerahan air, pasang-surut, suhu, struktur perairan, tanda ikan, umpan, waktu, dan kesiapan alat.
+    </p>
+
+    <form method="POST" id="hook-form">
+        <div class="grid">
+            <div class="box">
+                <label for="fish_target">Target Ikan</label>
+                <div class="help">Pilih kelompok ikan target agar rekomendasi teknik lebih sesuai.</div>
+                <select id="fish_target" name="fish_target">
+                    {% for key, label in fish_targets.items() %}
+                    <option value="{{ key }}" {% if key == fish_target %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="box">
+                <label for="hook_type">Jenis / Teknik Pancing</label>
+                <div class="help">Pilih teknik pancing yang digunakan.</div>
+                <select id="hook_type" name="hook_type">
+                    {% for key, label in hook_types.items() %}
+                    <option value="{{ key }}" {% if key == hook_type %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% for key, item in inputs.items() %}
+            <div class="box">
+                <label for="{{ key }}">{{ item.label }}</label>
+                <div class="help">{{ item.help }}</div>
+                <input type="number" id="{{ key }}" name="{{ key }}" min="0" max="10" step="0.1" value="{{ form_values[key] }}" required>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="siperi-action-panel" aria-label="Aksi kontekstual fitur">
+            <p class="siperi-action-title">Aksi Fitur</p>
+            <div class="siperi-action-grid">
+                <button type="submit">Evaluasi Kondisi Laut Pancing</button>
+                <a class="secondary-action" href="#grafik-pancing">Lihat Grafik Kelayakan</a>
+                <a class="secondary-action" href="#hasil-pancing">Tampilkan Rekomendasi Fuzzy</a>
+                <button class="danger-action" type="reset">Reset Input</button>
+            </div>
+        </div>
+    </form>
+
+    {% if error %}
+    <div class="error"><strong>Kesalahan:</strong> {{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+    <div class="results" id="hasil-pancing">
+        <h2>Hasil Identifikasi</h2>
+        <div class="box">
+            <h3>Skor Kelayakan Kondisi Pancing</h3>
+            <div class="score">{{ result.score }}</div>
+            <div class="category">{{ result.status }} | {{ result.category }}</div>
+            <div class="help"><strong>Target:</strong> {{ result.fish_target_label }}<br><strong>Teknik:</strong> {{ result.hook_type_label }}</div>
+        </div>
+
+        <h3>Rekomendasi Lapangan</h3>
+        <div class="recommendation">
+            <ul>
+                {% for rec in result.recommendations %}
+                <li>{{ rec }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        {% if chart %}
+        <div class="chart-card" id="grafik-pancing">
+            <h3>Grafik Kelayakan</h3>
+            <img src="{{ url_for('static', filename=chart) }}" alt="Grafik kelayakan pancing">
+        </div>
+        {% endif %}
+
+        <h3>Rule IF–THEN Paling Aktif</h3>
+        <table>
+            <tr><th>Kekuatan Rule</th><th>Output</th><th>Rule</th></tr>
+            {% for rule in result.dominant_rules %}
+            <tr>
+                <td>{{ rule.strength }}</td>
+                <td>{{ rule.output }}</td>
+                <td>{{ rule.rule }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+    <p class="note siperi-footer-note">
+        Catatan: Informasi target ikan, teknik pancing, kondisi laut, waktu terbaik, tanda lokasi potensial, dan kondisi yang perlu dihindari mengikuti teks yang Anda berikan dan dapat divalidasi lagi melalui FGD nelayan/pakar.
+    </p>
+</div>
+</body>
+</html>

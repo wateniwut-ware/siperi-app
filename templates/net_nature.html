@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>SIPERI Jaring | SIPERI</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#f3f7fa; margin:0; color:#1f2933; }
+        .container { max-width:1120px; margin:28px auto; background:#fff; padding:28px; border-radius:16px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
+        h1,h2,h3 { color:#0f4c5c; }
+        .subtitle { color:#52616b; line-height:1.55; }
+        .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+        .box { background:#f8fafc; padding:15px; border-radius:10px; border:1px solid #d9e2ec; }
+        label { display:block; font-weight:bold; margin-bottom:7px; }
+        .help { font-size:13px; color:#66788a; margin-bottom:8px; line-height:1.4; }
+        input, select { width:100%; padding:10px; font-size:15px; border:1px solid #bcccdc; border-radius:8px; box-sizing:border-box; }
+        button, .button-link { margin-top:18px; background:#0f4c5c; color:white; border:none; padding:12px 18px; font-size:15px; border-radius:9px; cursor:pointer; text-decoration:none; display:inline-block; }
+        .button-link { background:#52616b; margin-left:8px; }
+        .results { margin-top:26px; padding:20px; background:#eefaf5; border:1px solid #b7ead7; border-radius:12px; }
+        .score { font-size:38px; font-weight:bold; color:#0f4c5c; }
+        .status { font-size:22px; font-weight:bold; color:#166534; }
+        .recommendation { background:white; padding:15px; border-radius:10px; border:1px solid #c8e6d6; line-height:1.65; margin-top:16px; }
+        .chart-card { background:white; border:1px solid #d9e2ec; border-radius:12px; padding:14px; margin-top:18px; }
+        .chart-card img { max-width:560px; width:100%; height:auto; display:block; }
+        .error { margin-top:20px; padding:14px; background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; border-radius:10px; }
+        table { border-collapse:collapse; width:100%; margin-top:14px; font-size:14px; }
+        th,td { border:1px solid #d9e2ec; padding:8px; text-align:left; vertical-align:top; }
+        th { background:#eef7fb; }
+        .note { margin-top:18px; color:#66788a; font-size:13px; line-height:1.5; }
+        @media(max-width:900px){ .grid{grid-template-columns:1fr;} .container{margin:12px; padding:18px;} }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='siperi-theme.css') }}">
+</head>
+<body>
+<div class="container">
+    <div class="siperi-brandbar">
+        <div class="siperi-brand-left">
+            <img class="siperi-brand-logo" src="{{ url_for('static', filename='siperi-logo-main.png') }}" alt="Logo SIPERI">
+            <div class="siperi-brand-text">
+                <div class="siperi-kicker">SIPERI • Hybrid Fuzzy-AI</div>
+                <h1 class="siperi-brand-title">Kondisi Alam Penangkapan Jaring</h1>
+                <p class="siperi-brand-subtitle">Identifikasi kelayakan operasi jaring berdasarkan faktor lingkungan dan pengetahuan lokal.</p>
+            </div>
+        </div>
+        <div class="siperi-badge">SIPERI • Hybrid Fuzzy-AI</div>
+    </div>
+    <nav class="siperi-topnav" aria-label="Navigasi fitur SIPERI">
+        <a href="{{ url_for('index') }}">Sistem Utama</a>
+        <a href="{{ url_for('ice_ice_page') }}">Ice-Ice</a>
+        <a class="active" href="{{ url_for('net_nature_page') }}">Kondisi Alam Jaring</a>
+        <a href="{{ url_for('liftnet_nature_page') }}">Kondisi Laut Bagan</a>
+        <a href="{{ url_for('hook_nature_page') }}">Kondisi Laut Pancing</a>
+        <a href="{{ url_for('index') }}#about">Tentang Aplikasi</a>
+    </nav>
+    <div class="siperi-identity-card">
+        <div>
+            <div class="siperi-main-label">Sistem Pakar Perikanan Berbasis Hybrid: Fuzzy dan Artificial Intelligence</div>
+            <div class="siperi-main-desc">Aplikasi ini mengintegrasikan pendekatan fuzzy logic dan kecerdasan buatan untuk membantu evaluasi, diagnosis, dan rekomendasi keputusan pada berbagai aktivitas perikanan secara lebih sistematis dan profesional.</div>
+        </div>
+</div>
+    <h1>Fuzzy Identifikasi Kondisi Alam untuk Penangkapan Ikan dengan Jaring</h1>
+    <p class="subtitle">
+        Fitur ini menilai kelayakan kondisi alam untuk operasi jaring berdasarkan arus, gelombang-angin,
+        kejernihan air, perubahan suhu/massa air, tanda biologis ikan, waktu penangkapan, fase bulan,
+        kontur kedalaman, dan kesesuaian jenis jaring.
+    </p>
+
+    <form method="POST" id="net-form">
+        <div class="box" style="margin-bottom:16px;">
+            <label for="net_type">Jenis Jaring</label>
+            <select id="net_type" name="net_type">
+                {% for key, label in net_types.items() %}
+                    <option value="{{ key }}" {% if key == net_type %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div class="help">Pilih jenis jaring agar sistem memberi rule dan rekomendasi yang lebih spesifik.</div>
+        </div>
+
+        <div class="grid">
+            {% for key, item in inputs.items() %}
+            <div class="box">
+                <label for="{{ key }}">{{ item.label }}</label>
+                <div class="help">{{ item.help }}</div>
+                <input type="number" id="{{ key }}" name="{{ key }}" min="0" max="10" step="0.5" value="{{ form_values[key] }}" required>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="siperi-action-panel" aria-label="Aksi kontekstual fitur">
+            <p class="siperi-action-title">Aksi Fitur</p>
+            <div class="siperi-action-grid">
+                <button type="submit">Evaluasi Kondisi Alam Jaring</button>
+                <a class="secondary-action" href="#grafik-jaring">Lihat Grafik Kelayakan</a>
+                <a class="secondary-action" href="#hasil-jaring">Tampilkan Rekomendasi Fuzzy</a>
+                <button class="danger-action" type="reset">Reset Input</button>
+            </div>
+        </div>
+    </form>
+
+    {% if error %}
+    <div class="error"><strong>Kesalahan:</strong> {{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+    <div class="results" id="hasil-jaring">
+        <h2>Hasil Identifikasi</h2>
+        <p><strong>Jenis jaring:</strong> {{ result.net_type_label }}</p>
+        <div class="score">{{ result.score }} / 100</div>
+        <div class="status">{{ result.status }}</div>
+        <p><strong>Kategori fuzzy:</strong> {{ result.category }}</p>
+
+        <div class="recommendation">
+            <h3>Rekomendasi Lapangan</h3>
+            <ol>
+                {% for rec in result.recommendations %}
+                    <li>{{ rec }}</li>
+                {% endfor %}
+            </ol>
+        </div>
+
+        {% if chart %}
+        <div class="chart-card" id="grafik-jaring">
+            <h3>Grafik Kelayakan Kondisi Alam</h3>
+            <img src="{{ url_for('static', filename=chart) }}" alt="Grafik Kelayakan Kondisi Alam">
+        </div>
+        {% endif %}
+
+        <h3>Rule IF–THEN yang Paling Aktif</h3>
+        <table>
+            <tr>
+                <th>Kekuatan Rule</th>
+                <th>Output Fuzzy</th>
+                <th>Rule</th>
+            </tr>
+            {% for rule in result.dominant_rules %}
+            <tr>
+                <td>{{ rule.strength }}</td>
+                <td>{{ rule.output }}</td>
+                <td>{{ rule.rule }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+    <h2>Panduan Skor Lapangan</h2>
+    <table>
+        <tr>
+            <th>Aspek</th>
+            <th>0–3</th>
+            <th>4–6</th>
+            <th>7–10</th>
+        </tr>
+        <tr>
+            <td>Arus</td>
+            <td>Terlalu lemah</td>
+            <td>Sedang/stabil, paling ideal sekitar 5</td>
+            <td>Terlalu kuat/deras</td>
+        </tr>
+        <tr>
+            <td>Gelombang-angin</td>
+            <td>Rendah/aman</td>
+            <td>Sedang, perlu hati-hati</td>
+            <td>Tinggi, sebaiknya tunda</td>
+        </tr>
+        <tr>
+            <td>Kejernihan air</td>
+            <td>Terlalu keruh/lumpur</td>
+            <td>Agak keruh alami, ideal sekitar 5</td>
+            <td>Terlalu jernih, jaring mudah terlihat</td>
+        </tr>
+        <tr>
+            <td>Tanda biologis</td>
+            <td>Tidak ada tanda ikan</td>
+            <td>Ada beberapa tanda</td>
+            <td>Banyak burung/ikan kecil/riak/gerombolan</td>
+        </tr>
+        <tr>
+            <td>Waktu</td>
+            <td>Kurang produktif</td>
+            <td>Pagi/sore</td>
+            <td>Malam/pergantian pasang-surut</td>
+        </tr>
+        <tr>
+            <td>Kontur dan lokasi</td>
+            <td>Datar/tidak ada struktur</td>
+            <td>Cukup potensial</td>
+            <td>Tepi karang, rumpon, muara, lamun, batas arus</td>
+        </tr>
+    </table>
+
+    <p class="note siperi-footer-note">
+        Catatan: fitur ini adalah prototipe fuzzy/rule-based. Untuk penelitian final, bobot dan parameter membership sebaiknya divalidasi melalui FGD nelayan, data hasil tangkapan harian, fase bulan, arus, lokasi GPS, dan observasi lapangan.
+    </p>
+</div>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>SIPERI Dashboard | SIPERI</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#f3f7fa; margin:0; color:#1f2933; }
+        .container { max-width:1180px; margin:28px auto; background:#fff; padding:28px; border-radius:16px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
+        h1,h2,h3 { color:#0f4c5c; }
+        .subtitle { color:#52616b; line-height:1.5; }
+        .box { background:#f8fafc; padding:15px; border-radius:10px; border:1px solid #d9e2ec; }
+        .activity-box { background:#eef7fb; padding:16px; border:1px solid #cfe8f3; border-radius:12px; margin-bottom:18px; }
+        .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+        .result-grid, .chart-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+        label { display:block; font-weight:bold; margin-bottom:7px; }
+        .help { font-size:13px; color:#66788a; margin-bottom:8px; line-height:1.4; }
+        input,select { width:100%; padding:10px; font-size:15px; border:1px solid #bcccdc; border-radius:8px; box-sizing:border-box; }
+        button { margin-top:18px; background:#0f4c5c; color:white; border:none; padding:12px 18px; font-size:15px; border-radius:9px; cursor:pointer; }
+        .secondary { background:#52616b; margin-left:8px; }
+        .results { margin-top:26px; padding:20px; background:#eefaf5; border:1px solid #b7ead7; border-radius:12px; }
+        .score { font-size:30px; font-weight:bold; color:#0f4c5c; }
+        .category { text-transform:uppercase; color:#52616b; font-size:13px; }
+        .recommendation { background:white; padding:15px; border-radius:10px; border:1px solid #c8e6d6; line-height:1.6; margin-top:16px; }
+        .chart-card { background:white; border:1px solid #d9e2ec; border-radius:12px; padding:14px; }
+        .chart-card img { width:100%; height:auto; display:block; }
+        .error { margin-top:20px; padding:14px; background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; border-radius:10px; }
+        table { border-collapse:collapse; width:100%; margin-top:14px; font-size:14px; }
+        th,td { border:1px solid #d9e2ec; padding:8px; text-align:left; }
+        th { background:#eef7fb; }
+        .note { margin-top:18px; color:#66788a; font-size:13px; line-height:1.5; }
+        @media(max-width:900px){ .grid,.result-grid,.chart-grid{grid-template-columns:1fr;} .container{margin:12px; padding:18px;} }
+    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='siperi-theme.css') }}">
+</head>
+<body>
+<div class="container">
+    <div class="siperi-brandbar">
+        <div class="siperi-brand-left">
+            <img class="siperi-brand-logo" src="{{ url_for('static', filename='siperi-logo-main.png') }}" alt="Logo SIPERI">
+            <div class="siperi-brand-text">
+                <div class="siperi-kicker">SIPERI</div>
+                <h1 class="siperi-brand-title">SIPERI</h1>
+                <p class="siperi-brand-subtitle">Platform sistem pakar perikanan dengan pendekatan hybrid: fuzzy dan artificial intelligence untuk evaluasi, diagnosis, dan rekomendasi keputusan.</p>
+            </div>
+        </div>
+        <div class="siperi-badge">SIPERI • Fuzzy & Artificial Intelligence</div>
+    </div>
+    <nav class="siperi-topnav" aria-label="Navigasi fitur SIPERI">
+        <a class="active" href="{{ url_for('index') }}">Sistem Utama</a>
+        <a href="{{ url_for('ice_ice_page') }}">Ice-Ice</a>
+        <a href="{{ url_for('net_nature_page') }}">Kondisi Alam Jaring</a>
+        <a href="{{ url_for('liftnet_nature_page') }}">Kondisi Laut Bagan</a>
+        <a href="{{ url_for('hook_nature_page') }}">Kondisi Laut Pancing</a>
+        <a href="{{ url_for('index') }}#about">Tentang Aplikasi</a>
+    </nav>
+    <div class="siperi-identity-card">
+        <div>
+            <div class="siperi-main-label">Sistem Pakar Perikanan Berbasis Hybrid: Fuzzy dan Artificial Intelligence</div>
+            <div class="siperi-main-desc">Aplikasi ini mengintegrasikan pendekatan fuzzy logic dan kecerdasan buatan untuk membantu evaluasi, diagnosis, dan rekomendasi keputusan pada berbagai aktivitas perikanan secara lebih sistematis dan profesional.</div>
+        </div>
+</div>
+
+    <section class="siperi-about" id="about">
+        <div class="siperi-about-header">
+            <div class="siperi-kicker siperi-about-kicker">Tentang Aplikasi</div>
+            <h2>About SIPERI</h2>
+        </div>
+<p class="siperi-about-desc">
+            Aplikasi ini disusun oleh tim peneliti dari Laboratorium Teknologi dan Sistem Informasi Bisnis Perikanan, Program Studi Agribisnis Perikanan, Politeknik Perikanan Negeri Tual berfungsi sebagai sistem pakar perikanan berbasis hybrid fuzzy dan artificial intelligence untuk membantu pengguna menilai kelayakan aktivitas perikanan, mengidentifikasi tingkat risiko, dan menghasilkan rekomendasi tindakan berdasarkan indikator teknis dan pengetahuan pakar. Fitur utama aplikasi meliputi modul budidaya rumput laut, penangkapan ikan dengan jaring, penangkapan ikan dengan bagan apung, penangkapan ikan dengan alat pancing, pengolahan hasil perikanan, visualisasi adaptive membership function, prediksi machine learning, rekomendasi fuzzy, serta saran aksi berbasis reinforcement learning pada prototipe.
+        </p>
+        <div class="siperi-about-team">
+            <div class="siperi-team-title">Tim Penyusun</div>
+            <div class="siperi-team-names">Cawalinya Livsanthi Hasyim, Frischilla Pentury, Elisabeth Cory Ohoiwutun</div>
+        </div>
+    </section>
+
+    <h1>AI-Based Fuzzy Expert System Perikanan</h1>
+    <p class="subtitle">
+        Sistem ini memisahkan basis pengetahuan untuk lima aktivitas: budidaya rumput laut,
+        penangkapan ikan dengan jaring, penangkapan ikan dengan bagan apung, penangkapan ikan dengan alat pancing, dan pengolahan hasil perikanan.
+        Setiap aktivitas memiliki variabel, fuzzy rule, adaptive membership, model machine learning, dan saran tindakan RL tersendiri.
+    </p>
+
+    <section class="siperi-feature-dashboard" aria-label="Ringkasan fitur utama SIPERI">
+        <div class="siperi-feature-header">
+            <div class="siperi-kicker">Dashboard Fitur</div>
+            <h2>Pilih modul sesuai kebutuhan analisis</h2>
+            <p>Gunakan navigasi atas untuk berpindah cepat. Kartu berikut memberi ringkasan fungsi setiap modul agar pengguna memahami tujuan analisis sebelum membuka fitur.</p>
+        </div>
+        <div class="siperi-feature-grid">
+            <article class="siperi-feature-card">
+                <h3>Sistem Utama</h3>
+                <p>Evaluasi aktivitas perikanan berbasis fuzzy, adaptive membership, prediksi machine learning, rekomendasi fuzzy, dan saran aksi prototipe reinforcement learning.</p>
+                <a href="{{ url_for('index') }}#activity_key">Mulai evaluasi utama</a>
+            </article>
+            <article class="siperi-feature-card">
+                <h3>Ice-Ice</h3>
+                <p>Deteksi tingkat risiko penyakit ice-ice pada budidaya rumput laut berdasarkan indikator lingkungan dan gejala lapangan.</p>
+                <a href="{{ url_for('ice_ice_page') }}">Buka modul Ice-Ice</a>
+            </article>
+            <article class="siperi-feature-card">
+                <h3>Kondisi Alam Jaring</h3>
+                <p>Evaluasi kesesuaian kondisi alam untuk penangkapan ikan dengan jaring berdasarkan parameter lapangan dan jenis jaring.</p>
+                <a href="{{ url_for('net_nature_page') }}">Buka modul jaring</a>
+            </article>
+            <article class="siperi-feature-card">
+                <h3>Kondisi Laut Bagan</h3>
+                <p>Analisis kelayakan kondisi laut untuk operasi bagan apung, termasuk arus, gelombang, angin, kecerahan air, dan faktor pendukung lainnya.</p>
+                <a href="{{ url_for('liftnet_nature_page') }}">Buka modul bagan</a>
+            </article>
+            <article class="siperi-feature-card">
+                <h3>Kondisi Laut Pancing</h3>
+                <p>Analisis kondisi laut untuk aktivitas penangkapan dengan alat pancing berdasarkan target ikan, teknik pancing, cuaca laut, umpan, dan kesiapan alat.</p>
+                <a href="{{ url_for('hook_nature_page') }}">Buka modul pancing</a>
+            </article>
+        </div>
+    </section>
+
+    <form method="POST" id="main-evaluation-form">
+        <div class="activity-box">
+            <label for="activity_key">Pilih Aktivitas Perikanan</label>
+            <select name="activity_key" id="activity_key">
+                {% for key, activity in activities.items() %}
+                    <option value="{{ key }}" {% if key == activity_key %}selected{% endif %}>{{ activity.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" name="action" value="change_activity" class="secondary">Ganti Modul Aktivitas</button>
+            <p class="help">{{ cfg.description }}</p>
+        </div>
+
+        <h2>{{ cfg.name }}</h2>
+        <div class="grid">
+            {% for key in features %}
+            <div class="box">
+                <label for="{{ key }}">{{ cfg.features[key].label }}</label>
+                <div class="help">{{ cfg.features[key].help }}</div>
+                <input type="number" id="{{ key }}" name="{{ key }}" min="0" max="100" step="1" value="{{ form_values[key] }}" required>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="box" style="margin-top:16px;">
+            <label for="selected_feature">Pilih Variabel untuk Grafik Adaptive Membership</label>
+            <select id="selected_feature" name="selected_feature">
+                {% for key in features %}
+                    <option value="{{ key }}" {% if key == selected_feature %}selected{% endif %}>{{ cfg.features[key].label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="siperi-action-panel" aria-label="Aksi kontekstual modul utama">
+            <p class="siperi-action-title">Aksi Modul Utama</p>
+            <div class="siperi-action-grid">
+                <button type="submit" name="action" value="evaluate">Evaluasi Modul Ini</button>
+                <a class="secondary-action" href="#grafik-membership">Lihat Grafik Membership</a>
+                <button type="submit" name="action" value="evaluate">Jalankan Prediksi Machine Learning</button>
+                <a class="secondary-action" href="#hasil-evaluasi">Tampilkan Rekomendasi Fuzzy</a>
+                <button class="danger-action" type="reset">Reset Input</button>
+            </div>
+        </div>
+    </form>
+
+    {% if error %}
+    <div class="error"><strong>Kesalahan:</strong> {{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+    <div class="results" id="hasil-evaluasi">
+        <h2>Hasil {{ cfg.name }}</h2>
+        <div class="result-grid">
+            <div class="box">
+                <h3>{{ cfg.risk_label }}</h3>
+                <div class="score">{{ result.risk_score }}</div>
+                <div class="category">{{ result.risk_category }}</div>
+            </div>
+            <div class="box">
+                <h3>{{ cfg.performance_label }}</h3>
+                <div class="score">{{ result.performance_score }}</div>
+                <div class="category">{{ result.performance_category }}</div>
+            </div>
+            <div class="box">
+                <h3>Prediksi Risiko Tinggi ML</h3>
+                <div class="score">{{ ml_result.probability_percent }}%</div>
+                <div class="category">Prediksi: {{ ml_result.prediction }}</div>
+                <div class="help">Akurasi model demo modul ini: {{ ml_result.accuracy }}</div>
+            </div>
+        </div>
+
+        <h3>Saran Aksi Reinforcement Learning</h3>
+        <div class="box">
+            <strong>State:</strong> {{ rl_result.state }}<br>
+            <strong>Saran Aksi:</strong> {{ rl_result.action }}<br>
+            <strong>Q-value:</strong> {{ rl_result.q_value }}
+        </div>
+
+        <h3>Rekomendasi Fuzzy</h3>
+        <div class="recommendation">{{ result.recommendation }}</div>
+    </div>
+    {% endif %}
+
+    <h2>Visualisasi Modul {{ cfg.name }}</h2>
+    <div class="chart-grid" id="grafik-membership">
+        <div class="chart-card">
+            <h3>Adaptive Membership Function</h3>
+            <img src="{{ url_for('static', filename=charts.membership) }}" alt="Membership">
+        </div>
+        <div class="chart-card">
+            <h3>Machine Learning Feature Importance</h3>
+            <img src="{{ url_for('static', filename=charts.importance) }}" alt="Feature Importance">
+        </div>
+        {% if charts.result %}
+        <div class="chart-card">
+            <h3>AI-Based Fuzzy Indicators</h3>
+            <img src="{{ url_for('static', filename=charts.result) }}" alt="Result Chart">
+        </div>
+        {% endif %}
+    </div>
+
+    <h2>Adaptive Membership Parameters: {{ cfg.name }}</h2>
+    <table>
+        <tr>
+            <th>Variabel</th>
+            <th>Q25</th>
+            <th>Q50</th>
+            <th>Q75</th>
+            <th>Low</th>
+            <th>Medium</th>
+            <th>High</th>
+        </tr>
+        {% for key, p in adaptive_params.items() %}
+        <tr>
+            <td>{{ cfg.features[key].label }}</td>
+            <td>{{ p.q25 }}</td>
+            <td>{{ p.q50 }}</td>
+            <td>{{ p.q75 }}</td>
+            <td>{{ p.low }}</td>
+            <td>{{ p.medium }}</td>
+            <td>{{ p.high }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <p class="note siperi-footer-note">
+        Catatan: Data AI pada prototipe ini masih menggunakan data sampel. Untuk penelitian final,
+        ganti data sampel dengan data nyata per aktivitas: survey, FGD, validasi pakar, hasil produksi,
+        harga pasar, outcome keputusan, dan umpan balik pengguna.
+    </p>
+</div>
+</body>
+</html>
