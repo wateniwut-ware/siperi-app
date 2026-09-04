@@ -18,6 +18,16 @@ Run:
     python3 app.py
 """
 
+# ============================================================
+# PRELIMINARY RECALIBRATION NOTE
+# ============================================================
+# This version includes FGD-informed and field-data-informed calibration.
+# Main changes:
+# 1) More stable semantic membership thresholds for 0-100 variables.
+# 2) Rule-priority weighting for seaweed, net fishing, and floating lift-net.
+# 3) Random Forest is trained to predict positive recommendation/reward.
+# 4) Fuzzy score and hybrid fuzzy-RF score are calculated for each evaluation.
+
 from pathlib import Path
 import random
 import hashlib
@@ -206,7 +216,7 @@ def ensure_activity_sample_data(activity_key):
     features = list(cfg["features"].keys())
 
     if _valid_sample_file(path, features):
-        return pd.read_csv(path)
+        return clean_activity_dataframe(pd.read_csv(path), activity_key) if "clean_activity_dataframe" in globals() else pd.read_csv(path)
 
     seed_map = {
         "seaweed": 101,
@@ -318,36 +328,104 @@ def ensure_activity_sample_data(activity_key):
     return df
 
 
+# ============================================================
+# 2A. PRELIMINARY CALIBRATION SETTINGS
+# ============================================================
+
+# Semantic membership thresholds avoid unstable quantile-based membership when
+# several field variables have low variation or many repeated values.
+# These are suitable for 0-100 questionnaire scores.
+SEMANTIC_MEMBERSHIP = {
+    "low": [0, 0, 25, 45],
+    "medium": [30, 50, 70],
+    "high": [55, 75, 100, 100],
+}
+
+# Hybrid weights were selected from the preliminary field-data calibration.
+# Use module-specific weights when possible; use the pooled value as fallback.
+HYBRID_WEIGHTS = {
+    "seaweed": {"fuzzy": 0.582, "rf": 0.418},
+    "net_fishing": {"fuzzy": 0.375, "rf": 0.625},
+    "floating_liftnet": {"fuzzy": 0.635, "rf": 0.365},
+    "pooled": {"fuzzy": 0.459, "rf": 0.541},
+}
+
+
+def clean_activity_dataframe(df, activity_key):
+    """Ensure field data are numeric and safe for fuzzy/RF processing."""
+    features = list(ACTIVITIES[activity_key]["features"].keys())
+    df = df.copy()
+
+    for feature in features:
+        df[feature] = pd.to_numeric(df[feature], errors="coerce")
+        fill_value = df[feature].median()
+        if pd.isna(fill_value):
+            fill_value = 50
+        df[feature] = df[feature].fillna(fill_value).clip(0, 100)
+
+    if "outcome_high_risk" in df.columns:
+        df["outcome_high_risk"] = pd.to_numeric(df["outcome_high_risk"], errors="coerce").fillna(0).astype(int)
+    if "outcome_good_performance" in df.columns:
+        df["outcome_good_performance"] = pd.to_numeric(df["outcome_good_performance"], errors="coerce").fillna(0).astype(int)
+    if "reward" in df.columns:
+        df["reward"] = pd.to_numeric(df["reward"], errors="coerce").fillna(-1)
+
+    return df
+
+
 def build_adaptive_params(df, activity_key):
+    """Build FGD-informed membership functions.
+
+    Earlier versions used per-dataset quartiles. That can overfit small or
+    low-variance survey data. This calibrated version uses stable semantic
+    thresholds and retains quartiles as metadata for reporting.
+    """
+    df = clean_activity_dataframe(df, activity_key)
     params = {}
     for feature in ACTIVITIES[activity_key]["features"]:
         q25 = float(df[feature].quantile(0.25))
         q50 = float(df[feature].quantile(0.50))
         q75 = float(df[feature].quantile(0.75))
         params[feature] = {
-            "low": [0, 0, round(q25, 2), round(q50, 2)],
-            "medium": [round(q25, 2), round(q50, 2), round(q75, 2)],
-            "high": [round(q50, 2), round(q75, 2), 100, 100],
+            "low": SEMANTIC_MEMBERSHIP["low"],
+            "medium": SEMANTIC_MEMBERSHIP["medium"],
+            "high": SEMANTIC_MEMBERSHIP["high"],
             "q25": round(q25, 2),
             "q50": round(q50, 2),
             "q75": round(q75, 2),
+            "calibration": "FGD-informed semantic thresholds",
         }
     return params
 
 
 def train_activity_ml_model(df, activity_key):
+    """Train RF to estimate positive recommendation probability.
+
+    Target = 1 means positive/recommended decision. This aligns RF with the
+    final hybrid score instead of predicting only high-risk status.
+    """
     features = list(ACTIVITIES[activity_key]["features"].keys())
+    df = clean_activity_dataframe(df, activity_key)
     X = df[features]
-    y = df["outcome_high_risk"]
+
+    if "reward" in df.columns:
+        y = (df["reward"] > 0).astype(int)
+    elif "outcome_good_performance" in df.columns:
+        y = df["outcome_good_performance"].astype(int)
+    elif "outcome_high_risk" in df.columns:
+        y = (1 - df["outcome_high_risk"].astype(int)).astype(int)
+    else:
+        y = (df[features].mean(axis=1) >= 60).astype(int)
 
     if len(set(y)) < 2:
         y = (df[features].mean(axis=1) >= 60).astype(int)
 
+    stratify_y = y if len(set(y)) > 1 and min(y.value_counts()) >= 2 else None
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.25, random_state=42, stratify=y
+        X, y, test_size=0.25, random_state=42, stratify=stratify_y
     )
 
-    model = RandomForestClassifier(n_estimators=80, max_depth=6, random_state=42, n_jobs=-1)
+    model = RandomForestClassifier(n_estimators=120, max_depth=6, random_state=42, n_jobs=-1)
     model.fit(X_train, y_train)
     accuracy = float(model.score(X_test, y_test))
 
@@ -459,6 +537,41 @@ def category(score):
     return "tinggi"
 
 
+def decision_category(score):
+    """Operational decision category for 0-100 final suitability scores."""
+    score = float(score)
+    if score < 35:
+        return "tidak layak / tunda"
+    if score < 60:
+        return "waspada / kurang ideal"
+    if score < 80:
+        return "layak"
+    return "sangat layak"
+
+
+def calculate_fuzzy_decision_score(fuzzy_result):
+    """Combine fuzzy performance and inverse risk into one decision score."""
+    performance = float(fuzzy_result["performance_score"])
+    low_risk_component = 100 - float(fuzzy_result["risk_score"])
+    return round(0.60 * performance + 0.40 * low_risk_component, 2)
+
+
+def positive_probability(model, X_new):
+    """Return probability for class 1 even when class order is not guaranteed."""
+    proba = model.predict_proba(X_new)[0]
+    classes = list(model.classes_)
+    if 1 in classes:
+        return float(proba[classes.index(1)])
+    return float(proba[-1])
+
+
+def calculate_hybrid_score(activity_key, fuzzy_score, rf_positive_probability):
+    weights = HYBRID_WEIGHTS.get(activity_key, HYBRID_WEIGHTS["pooled"])
+    rf_score = float(rf_positive_probability) * 100
+    hybrid_score = weights["fuzzy"] * float(fuzzy_score) + weights["rf"] * rf_score
+    return round(hybrid_score, 2), round(rf_score, 2), weights
+
+
 class ActivityFuzzySystem:
     """Manual fuzzy inference system without scikit-fuzzy.control.
 
@@ -500,8 +613,11 @@ class ActivityFuzzySystem:
             return 50.0
         return sum(self.OUTPUT_CENTERS[k] * float(v) for k, v in activations.items()) / total
 
-    def _add_activation(self, store, category_name, value):
-        store[category_name] = max(store.get(category_name, 0.0), float(value))
+    def _add_activation(self, store, category_name, value, weight=1.0):
+        # weight expresses FGD/data-informed rule priority while preserving
+        # Mamdani-style max aggregation.
+        weighted_value = float(value) * float(weight)
+        store[category_name] = max(store.get(category_name, 0.0), weighted_value)
 
     def _infer(self, m):
         """Apply the same IF-THEN logic as the old ctrl.Rule block."""
@@ -513,40 +629,48 @@ class ActivityFuzzySystem:
         k = self.activity_key
 
         if k == "seaweed":
-            add(perf, "high", A(m["seed_quality"]["high"], m["water_condition"]["high"], m["disease_risk"]["low"]))
-            add(perf, "medium", A(m["seed_quality"]["medium"], m["water_condition"]["medium"]))
-            add(perf, "low", O(m["seed_quality"]["low"], m["water_condition"]["low"], m["disease_risk"]["high"]))
-            add(perf, "high", A(m["drying_condition"]["high"], m["market_price"]["high"]))
-            add(perf, "low", A(m["labor_availability"]["low"], m["weather_risk"]["high"]))
-            add(risk, "high", O(m["disease_risk"]["high"], m["weather_risk"]["high"]))
-            add(risk, "medium", O(m["disease_risk"]["medium"], m["weather_risk"]["medium"]))
-            add(risk, "low", A(m["disease_risk"]["low"], m["weather_risk"]["low"], m["water_condition"]["high"]))
-            add(risk, "high", A(m["drying_condition"]["low"], m["weather_risk"]["high"]))
-            add(perf, "medium", m["market_price"]["medium"])
+            # FGD/data-informed priority: disease and weather risks dominate,
+            # while market/labor/drying are retained with lower rule priority.
+            add(perf, "high", A(m["seed_quality"]["high"], m["water_condition"]["high"], m["disease_risk"]["low"]), weight=1.10)
+            add(perf, "medium", A(m["seed_quality"]["medium"], m["water_condition"]["medium"]), weight=1.00)
+            add(perf, "low", O(m["seed_quality"]["low"], m["water_condition"]["low"], m["disease_risk"]["high"]), weight=1.15)
+            add(perf, "high", A(m["drying_condition"]["high"], m["market_price"]["high"]), weight=0.65)
+            add(perf, "low", A(m["labor_availability"]["low"], m["weather_risk"]["high"]), weight=0.70)
+            add(risk, "high", O(m["disease_risk"]["high"], m["weather_risk"]["high"]), weight=1.25)
+            add(risk, "medium", O(m["disease_risk"]["medium"], m["weather_risk"]["medium"]), weight=1.10)
+            add(risk, "low", A(m["disease_risk"]["low"], m["weather_risk"]["low"], m["water_condition"]["high"]), weight=1.15)
+            add(risk, "high", A(m["drying_condition"]["low"], m["weather_risk"]["high"]), weight=0.75)
+            add(perf, "medium", m["market_price"]["medium"], weight=0.50)
 
         elif k == "net_fishing":
-            add(perf, "high", A(m["sea_condition"]["high"], m["fishing_ground_potential"]["high"], m["net_condition"]["high"]))
-            add(perf, "medium", A(m["sea_condition"]["medium"], m["fishing_ground_potential"]["medium"]))
-            add(perf, "low", O(m["sea_condition"]["low"], m["net_condition"]["low"], m["fishing_ground_potential"]["low"]))
-            add(perf, "high", A(m["market_demand"]["high"], m["fishing_ground_potential"]["high"]))
-            add(perf, "low", A(m["fuel_cost"]["high"], m["market_demand"]["low"]))
-            add(risk, "high", O(m["sea_condition"]["low"], m["fuel_cost"]["high"]))
-            add(risk, "medium", O(m["sea_condition"]["medium"], m["fuel_cost"]["medium"]))
-            add(risk, "low", A(m["sea_condition"]["high"], m["fuel_cost"]["low"], m["ice_availability"]["high"]))
-            add(risk, "high", A(m["crew_availability"]["low"], m["sea_condition"]["low"]))
-            add(perf, "medium", m["fishing_ground_potential"]["medium"])
+            # FGD/data-informed priority: fishing ground potential, sea condition,
+            # and crew availability receive stronger weights.
+            add(perf, "high", A(m["sea_condition"]["high"], m["fishing_ground_potential"]["high"], m["net_condition"]["high"]), weight=1.25)
+            add(perf, "medium", A(m["sea_condition"]["medium"], m["fishing_ground_potential"]["medium"]), weight=1.05)
+            add(perf, "low", O(m["sea_condition"]["low"], m["net_condition"]["low"], m["fishing_ground_potential"]["low"]), weight=1.20)
+            add(perf, "high", A(m["market_demand"]["high"], m["fishing_ground_potential"]["high"]), weight=0.70)
+            add(perf, "low", A(m["fuel_cost"]["high"], m["market_demand"]["low"]), weight=0.75)
+            add(risk, "high", O(m["sea_condition"]["low"], m["fuel_cost"]["high"]), weight=1.10)
+            add(risk, "medium", O(m["sea_condition"]["medium"], m["fuel_cost"]["medium"]), weight=1.00)
+            add(risk, "low", A(m["sea_condition"]["high"], m["fuel_cost"]["low"], m["ice_availability"]["high"]), weight=1.00)
+            add(risk, "high", A(m["crew_availability"]["low"], m["sea_condition"]["low"]), weight=1.15)
+            add(perf, "medium", m["fishing_ground_potential"]["medium"], weight=1.10)
 
         elif k == "floating_liftnet":
-            add(perf, "high", A(m["current_suitability"]["high"], m["wave_condition"]["high"], m["wind_condition"]["high"], m["moon_phase_suitability"]["high"]))
-            add(perf, "high", A(m["water_clarity"]["high"], m["water_color"]["high"], m["weather_condition"]["high"]))
-            add(perf, "high", A(m["sst_suitability"]["high"], m["depth_condition"]["high"], m["salinity_stability"]["high"]))
-            add(perf, "medium", A(m["current_suitability"]["medium"], m["wave_condition"]["medium"], m["moon_phase_suitability"]["medium"]))
-            add(perf, "low", O(m["current_suitability"]["low"], m["wave_condition"]["low"], m["wind_condition"]["low"], m["weather_condition"]["low"]))
-            add(risk, "high", O(m["current_suitability"]["low"], m["wave_condition"]["low"], m["wind_condition"]["low"]))
-            add(risk, "high", A(m["moon_phase_suitability"]["low"], m["water_clarity"]["low"]))
-            add(risk, "medium", O(m["weather_condition"]["medium"], m["salinity_stability"]["medium"], m["sst_suitability"]["medium"]))
-            add(risk, "low", A(m["current_suitability"]["high"], m["wave_condition"]["high"], m["wind_condition"]["high"], m["weather_condition"]["high"]))
-            add(perf, "medium", A(m["depth_condition"]["medium"], m["water_color"]["medium"]))
+            # FGD/data-informed priority: depth and moon phase are emphasized;
+            # operational safety remains controlled by current/wave/wind/weather.
+            add(perf, "high", A(m["depth_condition"]["high"], m["moon_phase_suitability"]["high"]), weight=1.30)
+            add(perf, "high", A(m["depth_condition"]["high"], m["moon_phase_suitability"]["high"], m["water_color"]["high"]), weight=1.25)
+            add(perf, "high", A(m["current_suitability"]["high"], m["wave_condition"]["high"], m["wind_condition"]["high"], m["moon_phase_suitability"]["high"]), weight=1.00)
+            add(perf, "high", A(m["water_clarity"]["high"], m["water_color"]["high"], m["weather_condition"]["high"]), weight=1.05)
+            add(perf, "high", A(m["sst_suitability"]["high"], m["depth_condition"]["high"], m["salinity_stability"]["high"]), weight=0.70)
+            add(perf, "medium", A(m["current_suitability"]["medium"], m["wave_condition"]["medium"], m["moon_phase_suitability"]["medium"]), weight=1.00)
+            add(perf, "low", O(m["current_suitability"]["low"], m["wave_condition"]["low"], m["wind_condition"]["low"], m["weather_condition"]["low"]), weight=1.20)
+            add(risk, "high", O(m["current_suitability"]["low"], m["wave_condition"]["low"], m["wind_condition"]["low"]), weight=1.20)
+            add(risk, "high", A(m["moon_phase_suitability"]["low"], m["water_clarity"]["low"]), weight=0.95)
+            add(risk, "medium", O(m["weather_condition"]["medium"], m["salinity_stability"]["medium"], m["sst_suitability"]["medium"]), weight=0.70)
+            add(risk, "low", A(m["current_suitability"]["high"], m["wave_condition"]["high"], m["wind_condition"]["high"], m["weather_condition"]["high"]), weight=1.10)
+            add(perf, "medium", A(m["depth_condition"]["medium"], m["water_color"]["medium"]), weight=1.10)
 
         elif k == "hook_fishing":
             add(perf, "high", A(m["sea_condition"]["high"], m["fish_presence_sign"]["high"], m["bait_availability"]["high"], m["hook_line_condition"]["high"]))
@@ -586,13 +710,17 @@ class ActivityFuzzySystem:
         risk = self._score_from_activations(risk_act)
         performance = self._score_from_activations(perf_act)
 
-        return {
+        base_result = {
             "risk_score": round(risk, 2),
             "risk_category": category(risk),
             "performance_score": round(performance, 2),
             "performance_category": category(performance),
             "recommendation": self.recommend(values, risk, performance),
         }
+        fuzzy_score = calculate_fuzzy_decision_score(base_result)
+        base_result["fuzzy_score"] = fuzzy_score
+        base_result["fuzzy_category"] = decision_category(fuzzy_score)
+        return base_result
 
     def recommend(self, values, risk, performance):
         if self.activity_key == "seaweed":
@@ -674,20 +802,32 @@ def membership_plot(activity_key, params, selected_feature):
 
 
 def result_plot(cfg, fuzzy_result, ml_probability):
-    labels = [cfg["risk_label"], cfg["performance_label"], "Probabilitas Risiko Tinggi ML"]
-    values = [fuzzy_result["risk_score"], fuzzy_result["performance_score"], round(ml_probability * 100, 2)]
+    labels = [
+        cfg["risk_label"],
+        cfg["performance_label"],
+        "Skor Fuzzy",
+        "Probabilitas Rekomendasi Positif RF",
+        "Skor Hybrid",
+    ]
+    values = [
+        fuzzy_result["risk_score"],
+        fuzzy_result["performance_score"],
+        fuzzy_result.get("fuzzy_score", 50),
+        round(ml_probability * 100, 2),
+        fuzzy_result.get("hybrid_score", 50),
+    ]
     digest = hashlib.md5(json.dumps(values, sort_keys=True).encode("utf-8")).hexdigest()[:12]
     filename = f"result_chart_{digest}.png"
     path = STATIC_DIR / filename
     if path.exists():
         return filename
 
-    fig, ax = plt.subplots(figsize=(7.2, 4.0))
+    fig, ax = plt.subplots(figsize=(8.8, 4.2))
     ax.bar(labels, values)
     ax.set_title("Indikator AI-Based Fuzzy Expert System")
     ax.set_ylabel("Skor / Probabilitas (%)")
     ax.set_ylim(0, 100)
-    ax.tick_params(axis="x", rotation=15)
+    ax.tick_params(axis="x", rotation=18)
     ax.grid(axis="y", alpha=0.3)
     for i, v in enumerate(values):
         ax.text(i, v + 2, str(v), ha="center", fontweight="bold")
@@ -797,14 +937,29 @@ def index():
 
                 X_new = pd.DataFrame([form_values])[features]
                 ml_pred = int(cache["model"].predict(X_new)[0])
-                ml_prob = float(cache["model"].predict_proba(X_new)[0][1])
+                ml_prob = positive_probability(cache["model"], X_new)
+                hybrid_score, rf_score, hybrid_weights = calculate_hybrid_score(
+                    activity_key, result["fuzzy_score"], ml_prob
+                )
+                result["rf_score"] = rf_score
+                result["rf_category"] = decision_category(rf_score)
+                result["hybrid_score"] = hybrid_score
+                result["hybrid_category"] = decision_category(hybrid_score)
+                result["hybrid_weight_fuzzy"] = hybrid_weights["fuzzy"]
+                result["hybrid_weight_rf"] = hybrid_weights["rf"]
 
                 state, action_suggestion, q_value = suggest_action(cache["q_policy"], activity_key, form_values)
 
                 ml_result = {
-                    "prediction": "tinggi" if ml_pred == 1 else "tidak tinggi",
+                    "prediction": "direkomendasikan" if ml_pred == 1 else "tidak direkomendasikan",
+                    "target": "positive_reward",
                     "probability": round(ml_prob, 3),
                     "probability_percent": round(ml_prob * 100, 2),
+                    "rf_score": rf_score,
+                    "rf_category": decision_category(rf_score),
+                    "hybrid_score": hybrid_score,
+                    "hybrid_category": decision_category(hybrid_score),
+                    "hybrid_formula": f"{hybrid_weights['fuzzy']:.3f} × fuzzy + {hybrid_weights['rf']:.3f} × RF",
                     "accuracy": round(cache["accuracy"], 3),
                 }
 
